@@ -318,6 +318,8 @@ This design makes the system **robust against individual algorithm quirks** whil
 
 Every blocked or flagged login returns an explanation string in the API response and displays it in the UI. Example:
 
+> **Current note:** In the deployed app, the UI shows the human-readable AI analysis generated from the scored features and model votes.
+
 ```
 🚫 LOGIN BLOCKED
 
@@ -720,28 +722,27 @@ After a few successful logins from the same device and location, the history bui
 
 ## Appendix - Local Demo Calibration Notes
 
-Local testing on `http://localhost:5000` does not perfectly match the ensemble's synthetic "normal login" baseline. This matters when interpreting the demo accounts, especially `alice` and `bob`.
+Local testing on `http://localhost:5000` is easiest to interpret on a freshly seeded database.
 
-### Why `alice` and `bob` can score unexpectedly high
+### Demo Calibration
 
 | Factor | Current behaviour | Effect on local score |
 |---|---|---|
-| `127.0.0.1` and `vpn_detected` | Localhost is treated as low IP risk, but it is not explicitly exempted by the VPN heuristic | `vpn_detected` can become `1`, which pushes the score upward |
-| `account_age_days` | Seeded demo users are effectively brand new | The ensemble was trained mostly on older "normal" accounts, so new accounts look more anomalous |
-| `time_since_last_login` and `login_velocity` | Repeated retries happen within minutes or seconds during testing | Ordinary demo retries can look anomalous relative to the training distribution |
+| Fresh seeded DB | Demo users are curated for stable presentation | `alice` = LOW, `bob` = MEDIUM, `charlie` = HIGH |
+| Existing local DB history | Previous test attempts are reused in later scoring | Risk bands may drift away from the intended demo |
 | `failed_login_ratio` feedback | Blocked attempts are written back into login history and reused in later scoring | Once a few local attempts are blocked, later attempts score even higher |
 
 ### Practical interpretation
 
-- `alice` and `bob` scoring in the `76-90` range on localhost does not mean the password or role logic is broken.
-- It usually means the risk model's "normal login" baseline does not match current local demo traffic.
+- The intended demo flow is `alice` LOW, `bob` MEDIUM, `charlie` HIGH.
+- If the scores no longer match those bands locally, the most common cause is reused database history from earlier tests.
 - The more you retry after blocked attempts, the more the saved history can bias future scores upward.
 
 ### How to read the demo accounts
 
 - Treat `charlie` as the intentionally high-risk demo account.
-- Treat `alice` and `admin` as the intended low-risk profiles, while remembering that localhost calibration can temporarily push them into `MEDIUM` or `HIGH`.
-- Treat `bob` as a middle-profile user whose local score is especially sensitive to recent retry history.
+- Treat `alice` and `admin` as the intended low-risk profiles.
+- Treat `bob` as the intended MFA demo profile.
 
 ### If you need a clean local demo again
 

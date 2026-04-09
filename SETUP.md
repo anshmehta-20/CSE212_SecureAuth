@@ -45,6 +45,8 @@ On first launch this will:
 
 ---
 
+> **Current demo note:** On a freshly seeded database, the intended demo bands are `alice` = LOW, `bob` = MEDIUM, and `charlie` = HIGH. If your local results drift from that, delete `backend/secureauth.db` and restart the app so the demo data reseeds.
+
 ## API Reference
 
 ### POST /api/login

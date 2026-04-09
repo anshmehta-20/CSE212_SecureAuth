@@ -228,16 +228,15 @@ confidence = 0.70 + (agreement / 3) × 0.25    ∈ [0.70, 0.95]
 
 ---
 
-### 3.4 Explainability (SHAP)
+### 3.4 Explainability
 
-To satisfy interpretability requirements, SecureAuth integrates SHapley Additive exPlanations (SHAP; Lundberg & Lee, 2017). For each authentication event, the system computes SHAP values attributing the model's output to each input feature.
+To satisfy interpretability requirements, SecureAuth returns a human-readable AI analysis alongside each authentication decision.
 
-- **IsolationForest** uses `shap.TreeExplainer` (exact, efficient tree traversal).
-- **OneClassSVM** and **LocalOutlierFactor** use `shap.KernelExplainer` with a background sample of 50 training instances.
+- High-risk decisions emphasize the strongest anomaly drivers.
+- Medium-risk decisions explain why step-up verification was required.
+- Low-risk decisions highlight the signals that matched the trusted pattern.
 
-The six features with the largest absolute SHAP magnitudes are converted to natural-language bullet points using a template library covering all 19 features. These explanations are returned to the client in the API response and rendered in the dashboard, enabling users and security administrators to understand the specific signals that drove each risk decision.
-
-If SHAP computation fails (e.g., due to a numerical edge case), the system falls back transparently to a set of heuristic threshold rules that produce equivalent human-readable output.
+These explanations are returned in the API response and rendered in the dashboard so the decision path is visible during demos and security review.
 
 ---
 
@@ -604,6 +603,8 @@ The following accounts are automatically seeded on first startup:
 
 ### Scenario: Stolen Credentials (Primary Demonstration)
 
+> **Current demo note:** On a freshly seeded environment, the intended demo bands are `alice` = LOW, `bob` = MEDIUM, `charlie` = HIGH, and `admin` = LOW with dashboard access. If you are testing locally with an older database, reset `backend/secureauth.db` before rerunning the demo.
+
 This scenario illustrates the core security guarantee of the system:
 
 ```
@@ -636,6 +637,8 @@ Outcome:  HTTP 403, access denied.
 ---
 
 ## 12. Dependencies
+
+> **Current note:** The deployed build uses the human-readable AI analysis path and does not require `shap` to be installed in production.
 
 | Package | Version | Purpose |
 |---|---|---|

@@ -179,7 +179,7 @@ MFA OTP (dev mode)
 2. Click the "Low Risk" demo row (alice / SecurePass123!)
 3. Click "Sign in"
 
-> **Note:** Alice will likely score HIGH on a fresh session because the seeded login history uses different IPs and locations. If blocked, this is correct AI behaviour. To test the dashboard directly, proceed to step 4 using admin.
+> **Note:** On a freshly seeded database, Alice is the intended LOW-risk demo account. If you see different results locally, reset `backend/secureauth.db` and restart the app before running the demo.
 
 4. Use the "Admin account" row (admin / AdminSecure1!) instead and click "Sign in"
 
@@ -198,7 +198,7 @@ MFA OTP (dev mode)
 - [ ] Three stat cards show: Last risk score, Risk level badge, Model confidence
 - [ ] Risk assessment card shows large gradient score number
 - [ ] Risk bar animates to the correct percentage over ~1 second
-- [ ] SHAP explanation block shows the AI analysis text
+- [ ] AI Analysis block shows the explanation text
 
 5. Click the **History** tab
 
@@ -419,9 +419,11 @@ python backend/app.py
 | Symptom | Likely Cause | Resolution |
 |---|---|---|
 | Server fails to start | Missing dependencies | `pip install -r requirements.txt` |
-| `No module named 'shap'` | Incomplete install | `pip install shap` |
+| All demo logins show unexpected bands | Old local DB history is still being reused | Delete `backend/secureauth.db` and restart so demo users reseed |
 | All logins return HIGH risk | AI sees new IP/device | Expected behaviour — models trained on synthetic data |
 | OTP not received by email | No Resend API key | Check server console — OTP is printed there |
 | `DB_TYPE=mysql` fails to connect | MySQL server not running | Switch to `DB_TYPE=sqlite` for dev |
 | Model files missing on startup | First run or deleted | Server auto-retrains — wait ~30 seconds |
 | Dashboard shows "Loading..." | Token expired or missing | Sign out and sign in again |
+
+> **Current demo note:** The intended presentation on a freshly seeded database is `alice` = LOW, `bob` = MEDIUM, and `charlie` = HIGH. If your local run does not match that, reset `backend/secureauth.db` and restart before presenting.
