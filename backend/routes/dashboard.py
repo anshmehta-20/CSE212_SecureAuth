@@ -166,10 +166,10 @@ def analytics():
 @require_admin
 def create_user():
     data = request.get_json()
-    username = data.get('username')
-    email = data.get('email')
+    username = str(data.get('username', '')).strip().lower()
+    email = str(data.get('email', '')).strip().lower()
     password = data.get('password')
-    role = data.get('role', 'user')
+    role = str(data.get('role', 'user')).strip().lower()
 
     if not username or not email or not password:
         return jsonify({'error': 'Username, email, and password are required.'}), 400
@@ -214,8 +214,8 @@ def list_users():
 @require_admin
 def edit_user(user_id):
     data = request.get_json()
-    username = data.get('username')
-    role = data.get('role')
+    username = str(data.get('username', '')).strip().lower() if data.get('username') else None
+    role = str(data.get('role', '')).strip().lower() if data.get('role') else None
     password = data.get('password')
 
     conn = get_connection()

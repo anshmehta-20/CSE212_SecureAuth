@@ -38,7 +38,7 @@ class User:
     def find_by_username(username: str) -> 'User | None':
         conn = get_connection()
         try:
-            cur = execute(conn, "SELECT * FROM users WHERE username = ?", (username,))
+            cur = execute(conn, "SELECT * FROM users WHERE username = ? OR email = ?", (username, username))
             row = cur.fetchone()
             return User(dict_from_row(row)) if row else None
         finally:

@@ -45,7 +45,7 @@ def login():
     data = request.get_json(silent=True) or {}
 
     # 1. Input validation
-    username = str(data.get('username', '')).strip()
+    username = str(data.get('username', '')).strip().lower()
     password = str(data.get('password', ''))
     if not username or not password:
         return jsonify({'error': 'Username and password are required.'}), 400

@@ -77,7 +77,7 @@
 }
 
 /* ── Base ── */
-html { font-size: 16px; scroll-behavior: smooth; }
+html { font-size: 16px; scroll-behavior: smooth; color-scheme: dark; }
 
 body {
   font-family:  var(--font);
@@ -267,6 +267,10 @@ body::after {
 .form-input.is-error { border-color: var(--red); }
 .form-input.is-error:focus {
   box-shadow: 0 0 0 3px rgba(239,68,68,0.18);
+}
+select.form-input option {
+  background-color: var(--bg-mid);
+  color: var(--text-1);
 }
 
 /* Password toggle */

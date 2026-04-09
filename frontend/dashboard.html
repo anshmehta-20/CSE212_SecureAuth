@@ -195,7 +195,14 @@
         <form id="add-user-form" style="display: flex; gap: 10px; flex-wrap: wrap;">
           <input type="text" id="new-username" class="form-input" placeholder="Username" required style="flex: 1; min-width: 150px; background: var(--bg-surface);">
           <input type="email" id="new-email" class="form-input" placeholder="Email" required style="flex: 1; min-width: 150px; background: var(--bg-surface);">
-          <input type="password" id="new-password" class="form-input" placeholder="Password" required style="flex: 1; min-width: 150px; background: var(--bg-surface);">
+          <div class="input-wrap" style="flex: 1; min-width: 150px;">
+            <input type="password" id="new-password" class="form-input" placeholder="Password" required style="background: var(--bg-surface); width: 100%;">
+            <button type="button" class="input-action toggle-pwd-btn" data-target="new-password" aria-label="Toggle password visibility">
+              <svg class="eye-icon-svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            </button>
+          </div>
           <select id="new-role" class="form-input" style="width: auto; background: var(--bg-surface);">
             <option value="user">User</option>
             <option value="admin">Admin</option>
@@ -262,7 +269,14 @@
       
       <div>
         <label class="form-label" style="margin-bottom:4px; display:block;">New Password (leave blank to keep current)</label>
-        <input type="password" id="edit-password" class="form-input" placeholder="••••••••" style="width:100%; box-sizing:border-box;">
+        <div class="input-wrap">
+          <input type="password" id="edit-password" class="form-input" placeholder="••••••••" style="width:100%; box-sizing:border-box;">
+          <button type="button" class="input-action toggle-pwd-btn" data-target="edit-password" aria-label="Toggle password visibility">
+            <svg class="eye-icon-svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+            </svg>
+          </button>
+        </div>
       </div>
       
       <div id="admin-edit-alert" style="margin-top:4px;"></div>
