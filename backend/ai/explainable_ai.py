@@ -1,44 +1,38 @@
 """
-ai/explainable_ai.py – SHAP-based human-readable explanation of risk decisions.
+ai/explainable_ai.py - Human-readable explanation generation for risk decisions.
 """
 
 import logging
-import numpy as np
 from typing import Optional
+
+import numpy as np
 
 from ai.feature_engineering import FEATURE_NAMES
 
 logger = logging.getLogger(__name__)
 
 
-# ─────────────────────────────────────────────────────────────────
-# SHAP explainer (KernelExplainer works for all sklearn models)
-# ─────────────────────────────────────────────────────────────────
-
 def _get_explainer(model, background_data: np.ndarray):
-    """Return a SHAP explainer for the given model."""
     try:
         import shap
-        # Use TreeExplainer for IsolationForest, KernelExplainer for others
+
         model_type = type(model).__name__
         if model_type == 'IsolationForest':
             return shap.TreeExplainer(model)
-        else:
-            # KernelExplainer needs a small background sample
-            bg = shap.sample(background_data, min(50, len(background_data)))
-            return shap.KernelExplainer(model.score_samples, bg)
+
+        bg = shap.sample(background_data, min(50, len(background_data)))
+        return shap.KernelExplainer(model.score_samples, bg)
     except Exception as exc:
         logger.warning("SHAP explainer init failed: %s", exc)
         return None
 
 
 def compute_shap_values(model, feature_vector: np.ndarray, background: np.ndarray):
-    """Compute SHAP values for the given feature vector."""
     explainer = _get_explainer(model, background)
     if explainer is None:
         return None
+
     try:
-        import shap
         shap_values = explainer.shap_values(feature_vector)
         if isinstance(shap_values, list):
             shap_values = shap_values[0]
@@ -48,58 +42,62 @@ def compute_shap_values(model, feature_vector: np.ndarray, background: np.ndarra
         return None
 
 
-# ─────────────────────────────────────────────────────────────────
-# Human-readable explanation generator
-# ─────────────────────────────────────────────────────────────────
-
 _FEATURE_TEMPLATES = {
     'hour_of_day': {
-        'high':  'Login at {val:.0f}:00 is very unusual (typically associated with attacks)',
-        'low':   'Login time ({val:.0f}:00) is within normal hours',
+        'high': 'Login at {val:.0f}:00 is outside the usual pattern for this account',
+        'low': 'Login time ({val:.0f}:00) falls within the normal pattern',
     },
     'is_weekend': {
-        'high':  'Login on a weekend is unusual for this account',
-        'low':   'Weekday login matches your normal pattern',
+        'high': 'Weekend activity is less common for this account',
+        'low': 'Weekday timing matches the account history',
     },
     'is_business_hours': {
-        'high':  'Login outside business hours raises suspicion',
-        'low':   'Login during business hours – expected',
+        'high': 'Login happened outside business hours',
+        'low': 'Login happened during business hours',
     },
     'time_since_last_login': {
-        'high':  'Very long gap since last login ({val:.0f}h) – possible account takeover',
-        'low':   'Login frequency matches your typical pattern',
+        'high': 'There has been a long gap since the last login ({val:.0f}h)',
+        'low': 'Time since the last login is consistent with recent activity',
     },
     'location_change': {
-        'high':  'Location is different from your usual locations – possible travel or attack',
-        'low':   'Login from a familiar location',
+        'high': 'Location differs from the most recent trusted login',
+        'low': 'Location matches the recent trusted pattern',
     },
     'device_change': {
-        'high':  'New device detected – first time logging in from this device',
-        'low':   'Recognized device',
+        'high': 'This looks like a new device for the account',
+        'low': 'Device fingerprint matches the recent trusted pattern',
     },
     'login_velocity': {
-        'high':  'Multiple login attempts in a short window – possible credential stuffing',
-        'low':   'Login rate is normal',
+        'high': 'There have been multiple attempts in a short window',
+        'low': 'Login attempt rate looks normal',
     },
     'typing_speed': {
-        'high':  'Unusual input speed – possible automated script',
-        'low':   'Typing speed appears human-like',
+        'high': 'Typing speed looks unusual for a normal interactive login',
+        'low': 'Typing speed looks human and consistent',
     },
     'ip_risk_score': {
-        'high':  'IP address has a high risk score ({val:.0%}) – known malicious range',
-        'low':   'IP address appears clean',
+        'high': 'IP reputation is elevated ({val:.0%})',
+        'low': 'IP reputation looks acceptable for this login',
     },
     'vpn_detected': {
-        'high':  'VPN or proxy detected – often used to hide true location',
-        'low':   'No VPN detected',
+        'high': 'A VPN or proxy signal was detected for this request',
+        'low': 'No VPN or proxy signal was detected',
     },
     'country_change': {
-        'high':  'Country change detected since last login',
-        'low':   'Same country as previous logins',
+        'high': 'Country differs from the recent login pattern',
+        'low': 'Country matches the recent login pattern',
     },
     'failed_login_ratio': {
-        'high':  'High ratio of failed logins ({val:.0%}) – brute force indicator',
-        'low':   'Low failed login ratio – normal',
+        'high': 'The account history contains a high share of blocked attempts ({val:.0%})',
+        'low': 'Blocked-attempt history for this account is low',
+    },
+    'account_age_days': {
+        'high': 'This is still a very new account ({val:.0f} days old)',
+        'low': 'The account has an established trust history',
+    },
+    'login_frequency_7d': {
+        'high': 'Recent 7-day login frequency ({val:.0f}) is unusually high',
+        'low': 'Recent 7-day login frequency looks stable',
     },
 }
 
@@ -111,102 +109,160 @@ def generate_explanation(
     model_votes: dict,
     shap_values: Optional[np.ndarray] = None,
 ) -> str:
-    """
-    Build a human-readable, SHAP-informed explanation string.
-    Falls back to heuristic rules if SHAP is unavailable.
-    """
     fv = feature_vector.flatten()
     fmap = dict(zip(FEATURE_NAMES, fv))
 
-    # ── Determine weights ────────────────────────────────────────
     if shap_values is not None and len(shap_values) == len(FEATURE_NAMES):
         weights = dict(zip(FEATURE_NAMES, np.abs(shap_values)))
     else:
         weights = _heuristic_weights(fmap)
 
-    # Top contributing features (highest absolute SHAP)
-    top_features = sorted(weights.items(), key=lambda x: x[1], reverse=True)[:6]
+    risky, reassuring = _rank_features(fmap, weights)
+    bullets = _build_bullets(risk_level, risky, reassuring)
 
-    # ── Build bullet points ──────────────────────────────────────
-    bullets = []
-    for feat_name, weight in top_features:
-        if weight < 0.01:
-            continue
-        val    = fmap.get(feat_name, 0)
-        tmpl   = _FEATURE_TEMPLATES.get(feat_name)
-        if tmpl is None:
-            continue
-        # Determine if this feature is flagging high or low risk
-        is_risky = _is_risky(feat_name, val)
-        key      = 'high' if is_risky else 'low'
-        try:
-            bullet = tmpl[key].format(val=val)
-        except (KeyError, ValueError):
-            bullet = tmpl[key]
-        if is_risky or risk_level != 'LOW':
-            bullets.append(('⚠️' if is_risky else '✅', bullet))
+    anomaly_models = [name for name, vote in model_votes.items() if vote == -1]
+    if risk_level == 'MEDIUM' and not risky and anomaly_models:
+        bullets = [('ALERT', _model_consensus_note(anomaly_models))] + bullets
 
-    # ── Header ──────────────────────────────────────────────────
     if risk_level == 'LOW':
-        header  = '✅ LOGIN ALLOWED\n'
-        summary = 'Login appears normal. Welcome back!'
+        header = 'LOGIN ALLOWED'
+        summary = 'This login closely matches the trusted pattern for the account.'
     elif risk_level == 'MEDIUM':
-        header  = '⚠️  MEDIUM RISK – MFA REQUIRED\n'
-        summary = 'Some unusual patterns detected. Additional verification needed.'
+        header = 'MEDIUM RISK - MFA REQUIRED'
+        summary = _medium_summary(risky, anomaly_models)
     else:
-        header  = '🚫 LOGIN BLOCKED\n'
-        summary = 'Multiple high-risk indicators detected. For your security, we\'ve blocked this attempt.'
+        header = 'LOGIN BLOCKED'
+        summary = _high_summary(risky)
 
-    # ── Models voted ─────────────────────────────────────────────
-    anomaly_models = [k for k, v in model_votes.items() if v == -1]
-    model_line     = ''
     if anomaly_models:
-        model_line = f'\nModels flagged: {", ".join(anomaly_models)}'
+        model_line = f"Models flagged: {', '.join(anomaly_models)}"
+    else:
+        model_line = 'Models flagged: none'
 
-    # ── Assemble ─────────────────────────────────────────────────
-    analysis_lines = '\n'.join(
-        f'  • {emoji} {text}' for emoji, text in bullets
-    ) if bullets else '  • Login appears normal. Welcome back!'
+    analysis_lines = '\n'.join(f"  - {emoji} {text}" for emoji, text in bullets)
+    if not analysis_lines:
+        analysis_lines = '  - Login appears normal.'
 
-    explanation = (
-        f'{header}\n'
+    recommendation = "Contact support if this wasn't you." if risk_level == 'HIGH' else 'Review if unexpected.'
+
+    return (
+        f'{header}\n\n'
         f'Risk Score: {risk_score:.0f}/100\n\n'
         f'Summary: {summary}\n\n'
-        f'Analysis:\n{analysis_lines}'
+        f'Analysis:\n{analysis_lines}\n'
         f'{model_line}\n\n'
-        f'Recommendation: {"Contact support if this wasn\'t you." if risk_level == "HIGH" else "Review if unexpected."}'
+        f'Recommendation: {recommendation}'
     )
-    return explanation
 
 
 def _is_risky(feature: str, value: float) -> bool:
-    """Heuristic: is the feature value in a risky range?"""
     rules = {
-        'hour_of_day':          lambda v: v < 6 or v > 22,
-        'is_weekend':           lambda v: v == 1,
-        'is_business_hours':    lambda v: v == 0,
-        'time_since_last_login':lambda v: v > 96,
-        'location_change':      lambda v: v == 1,
-        'device_change':        lambda v: v == 1,
-        'login_velocity':       lambda v: v >= 5,
-        'typing_speed':         lambda v: v < 1.0 or v > 15,
-        'ip_risk_score':        lambda v: v > 0.5,
-        'vpn_detected':         lambda v: v == 1,
-        'country_change':       lambda v: v == 1,
-        'failed_login_ratio':   lambda v: v > 0.3,
-        'account_age_days':     lambda v: v < 3,
-        'login_frequency_7d':   lambda v: v > 30,
+        'hour_of_day': lambda v: v < 6 or v > 22,
+        'is_weekend': lambda v: v == 1,
+        'is_business_hours': lambda v: v == 0,
+        'time_since_last_login': lambda v: v > 96,
+        'location_change': lambda v: v == 1,
+        'device_change': lambda v: v == 1,
+        'login_velocity': lambda v: v >= 5,
+        'typing_speed': lambda v: v < 1.0 or v > 15.0,
+        'ip_risk_score': lambda v: v > 0.5,
+        'vpn_detected': lambda v: v == 1,
+        'country_change': lambda v: v == 1,
+        'failed_login_ratio': lambda v: v > 0.3,
+        'account_age_days': lambda v: v < 7,
+        'login_frequency_7d': lambda v: v > 30,
     }
-    fn = rules.get(feature)
-    return bool(fn(value)) if fn else False
+    checker = rules.get(feature)
+    return bool(checker(value)) if checker else False
 
 
 def _heuristic_weights(fmap: dict) -> dict:
-    """Fallback weights when SHAP is unavailable."""
-    weights = {}
-    for feat, val in fmap.items():
-        if _is_risky(feat, val):
-            weights[feat] = 0.5
+    return {feature: _feature_weight(feature, value) for feature, value in fmap.items()}
+
+
+def _feature_weight(feature: str, value: float) -> float:
+    if feature in {'location_change', 'device_change', 'country_change'}:
+        return 1.0 if value == 1 else 0.45
+    if feature == 'failed_login_ratio':
+        return min(1.0, 0.2 + value * 1.5)
+    if feature == 'ip_risk_score':
+        return min(1.0, max(0.2, value))
+    if feature == 'vpn_detected':
+        return 0.85 if value == 1 else 0.3
+    if feature == 'time_since_last_login':
+        return 0.85 if value > 96 else (0.55 if value > 48 else 0.3)
+    if feature == 'login_velocity':
+        return 0.9 if value >= 5 else (0.45 if value >= 3 else 0.25)
+    if feature == 'account_age_days':
+        if value < 7:
+            return 0.8
+        if value < 30:
+            return 0.5
+        return 0.35
+    if feature == 'login_frequency_7d':
+        return 0.8 if value > 30 else 0.25
+    if feature in {'hour_of_day', 'is_weekend', 'is_business_hours', 'typing_speed'}:
+        return 0.55 if _is_risky(feature, value) else 0.25
+    return 0.2
+
+
+def _rank_features(fmap: dict, weights: dict):
+    risky = []
+    reassuring = []
+
+    for feature, weight in weights.items():
+        template = _FEATURE_TEMPLATES.get(feature)
+        if template is None or weight < 0.2:
+            continue
+
+        value = fmap.get(feature, 0)
+        risky_flag = _is_risky(feature, value)
+        key = 'high' if risky_flag else 'low'
+        text = template[key].format(val=value)
+
+        if risky_flag:
+            risky.append((weight, 'ALERT', text))
         else:
-            weights[feat] = 0.1
-    return weights
+            reassuring.append((weight, 'OK', text))
+
+    risky.sort(key=lambda item: item[0], reverse=True)
+    reassuring.sort(key=lambda item: item[0], reverse=True)
+    return risky, reassuring
+
+
+def _build_bullets(risk_level: str, risky: list, reassuring: list):
+    if risk_level == 'LOW':
+        selected = reassuring[:4]
+        if not selected:
+            selected = risky[:2]
+    elif risk_level == 'MEDIUM':
+        selected = risky[:3] + reassuring[:1]
+        if not risky:
+            selected = reassuring[:3]
+    else:
+        selected = risky[:4] + reassuring[:1]
+
+    return [(marker, text) for _, marker, text in selected]
+
+
+def _medium_summary(risky: list, anomaly_models: list) -> str:
+    if risky:
+        reasons = ', '.join(text.lower().rstrip('.') for _, _, text in risky[:2])
+        return f'Additional verification is required because we detected {reasons}.'
+    if anomaly_models:
+        return 'The login looks mostly consistent, but multiple anomaly models still requested extra verification.'
+    return 'Some unusual patterns were detected, so extra verification is required.'
+
+
+def _high_summary(risky: list) -> str:
+    if risky:
+        reasons = ', '.join(text.lower().rstrip('.') for _, _, text in risky[:2])
+        return f'This attempt was blocked because we detected {reasons}.'
+    return 'Multiple high-risk indicators were detected, so the attempt was blocked.'
+
+
+def _model_consensus_note(anomaly_models: list) -> str:
+    count = len(anomaly_models)
+    if count == 1:
+        return f'{anomaly_models[0]} flagged the overall pattern as unusual, so extra verification is required'
+    return f'{count} anomaly models flagged the overall pattern as unusual, so extra verification is required'
