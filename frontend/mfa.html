@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify identity – SecureAuth</title>
+  <meta name="description" content="Enter your one-time verification code to complete sign-in." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%233b82f6'/><stop offset='100%25' stop-color='%238b5cf6'/></linearGradient></defs><path d='M50 20a20 20 0 0 1 20 20v6h5a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3H25a3 3 0 0 1-3-3V49a3 3 0 0 1 3-3h5v-6A20 20 0 0 1 50 20zm0 43a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm13-23v-6a13 13 0 0 0-26 0v6h26z' fill='white'/></svg>" />
+</head>
+<body>
+
+<main class="page">
+  <div class="card card-sm">
+
+    <!-- Brand -->
+    <div class="brand">
+      <div class="brand-mark">
+        <div class="brand-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <span class="brand-name">SecureAuth</span>
+      </div>
+      <h1>Two-factor verification</h1>
+      <p id="mfa-sub">Enter the 6-digit code sent to your registered email address.</p>
+    </div>
+
+    <!-- Risk context -->
+    <div id="risk-context" class="risk-context-wrap" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span class="text-sm text-muted">Elevated risk detected</span>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="text-sm" id="ctx-score" style="font-variant-numeric:tabular-nums;font-weight:600;color:var(--amber)"></span>
+          <div id="ctx-badge"></div>
+        </div>
+      </div>
+      <div class="risk-bar-track">
+        <div class="risk-bar-fill" id="ctx-bar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div id="alert-container"></div>
+
+    <!-- OTP -->
+    <div class="otp-group" role="group" aria-label="One-time password">
+      <input class="otp-box" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" id="otp-0" aria-label="Digit 1" />
+      <input class="otp-box" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" id="otp-1" aria-label="Digit 2" />
+      <input class="otp-box" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" id="otp-2" aria-label="Digit 3" />
+      <input class="otp-box" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" id="otp-3" aria-label="Digit 4" />
+      <input class="otp-box" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" id="otp-4" aria-label="Digit 5" />
+      <input class="otp-box" type="text" inputmode="numeric" maxlength="1" pattern="[0-9]" id="otp-5" aria-label="Digit 6" />
+    </div>
+
+    <div class="otp-timer" id="otp-timer">
+      Code expires in <span class="time" id="countdown">5:00</span>
+    </div>
+
+    <button class="btn btn-primary" id="verify-btn" type="button">
+      <div class="btn-spinner"></div>
+      <span class="btn-text">Verify code</span>
+    </button>
+
+    <div class="divider"></div>
+
+    <div style="display:flex;flex-direction:column;gap:10px;align-items:center">
+      <button class="btn btn-secondary" id="resend-btn" type="button" disabled style="width:100%">
+        <span id="resend-text">Resend code</span>
+      </button>
+      <a href="index.html" class="text-sm text-muted" style="color:var(--text-3)">Back to sign in</a>
+    </div>
+
+  </div>
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>

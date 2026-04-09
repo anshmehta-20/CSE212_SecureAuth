@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dashboard – SecureAuth</title>
+  <meta name="description" content="AI-powered security dashboard with risk analysis and account monitoring." />
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js" defer></script>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='url(%23g)'/><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0%25' stop-color='%233b82f6'/><stop offset='100%25' stop-color='%238b5cf6'/></linearGradient></defs><path d='M50 20a20 20 0 0 1 20 20v6h5a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3H25a3 3 0 0 1-3-3V49a3 3 0 0 1 3-3h5v-6A20 20 0 0 1 50 20zm0 43a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm13-23v-6a13 13 0 0 0-26 0v6h26z' fill='white'/></svg>" />
+
+  <style>
+    /* Inline overrides for dashboard gradient accents */
+    .stat-card:nth-child(1) .stat-value { background: linear-gradient(135deg,#2563eb,#3b82f6); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .stat-card:nth-child(2) .stat-value { -webkit-text-fill-color: unset; }
+    .stat-card:nth-child(3) .stat-value { background: linear-gradient(135deg,#16a34a,#22c55e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    canvas { max-height: 180px; }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Navbar -->
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="nav-brand">
+        <div class="nav-brand-icon">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+          </svg>
+        </div>
+        <span class="nav-brand-name">SecureAuth</span>
+      </div>
+      <div class="nav-divider"></div>
+      <div class="nav-tabs" role="tablist">
+        <button class="nav-tab active" role="tab" data-tab="overview" id="tab-overview">Overview</button>
+        <button class="nav-tab"        role="tab" data-tab="history"  id="tab-history">History</button>
+        <button class="nav-tab hidden" role="tab" data-tab="admin"    id="tab-admin">Admin</button>
+      </div>
+    </div>
+
+    <div class="navbar-right">
+      <div class="user-pill">
+        <div class="user-avatar" id="user-avatar">—</div>
+        <span class="user-name"  id="user-display">Loading</span>
+        <span class="user-role-tag hidden" id="role-tag">Admin</span>
+      </div>
+      <button class="btn btn-ghost btn-sm" id="logout-btn">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- Main content -->
+  <div class="content">
+    <div class="page-header">
+      <h1 class="page-title">Security Dashboard</h1>
+      <p class="page-sub" id="page-sub-text">AI-powered authentication risk analysis and account activity</p>
+    </div>
+
+    <div id="alert-container"></div>
+
+    <!-- ── Overview ── -->
+    <div class="tab-panel active" id="panel-overview">
+
+      <div class="grid-3">
+        <div class="stat-card">
+          <div class="stat-label">Last risk score</div>
+          <div class="stat-value" id="stat-score">—</div>
+          <div class="stat-sub">out of 100</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Risk level</div>
+          <div class="stat-value" id="stat-level" style="font-size:20px;margin-top:6px">—</div>
+          <div class="stat-sub" id="stat-level-sub"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Model confidence</div>
+          <div class="stat-value" id="stat-confidence">—</div>
+          <div class="stat-sub">ensemble agreement</div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="section-card">
+          <div class="section-label">Risk Assessment</div>
+          <div class="score-display">
+            <span class="score-num" id="score-big">—</span>
+            <span class="score-den">/ 100</span>
+            <div id="score-badge" style="margin-bottom:5px"></div>
+          </div>
+          <div class="risk-bar-track" style="margin-bottom:10px">
+            <div class="risk-bar-fill" id="score-bar" style="width:0%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span class="text-sm text-muted">Low (0-39)</span>
+            <span class="text-sm text-muted">Medium (40-69)</span>
+            <span class="text-sm text-muted">High (70+)</span>
+          </div>
+        </div>
+
+        <div class="section-card">
+          <div class="section-label">AI Analysis — SHAP Explanation</div>
+          <div class="mono-block" id="expl-block">Loading analysis...</div>
+          <div class="vote-tags" id="vote-tags-wrap"></div>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-label">Account Information</div>
+        <div class="info-grid">
+          <div>
+            <div class="info-item-label">Username</div>
+            <div class="info-item-value" id="info-username">—</div>
+          </div>
+          <div>
+            <div class="info-item-label">Email address</div>
+            <div class="info-item-value" id="info-email">—</div>
+          </div>
+          <div>
+            <div class="info-item-label">Role</div>
+            <div class="info-item-value" id="info-role">—</div>
+          </div>
+          <div>
+            <div class="info-item-label">Member since</div>
+            <div class="info-item-value" id="info-created">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── History ── -->
+    <div class="tab-panel" id="panel-history">
+      <div class="section-card">
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">
+          <span>Login History</span>
+          <span class="text-sm text-muted" id="history-count"></span>
+        </div>
+        <div class="table-wrap">
+          <table id="history-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Timestamp</th>
+                <th>IP Address</th>
+                <th>Location</th>
+                <th>Device</th>
+                <th>Score</th>
+                <th>Level</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody id="history-body">
+              <tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:24px">Loading history...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Admin ── -->
+    <div class="tab-panel" id="panel-admin">
+
+      <div class="grid-3" style="margin-bottom:20px">
+        <div class="stat-card">
+          <div class="stat-label">Registered users</div>
+          <div class="stat-value" id="adm-users">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Logins (7 days)</div>
+          <div class="stat-value" id="adm-logins">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Blocked attempts</div>
+          <div class="stat-value" id="adm-blocked" style="background:linear-gradient(135deg,#dc2626,#ef4444);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text">—</div>
+        </div>
+      </div>
+
+      <div class="grid-2" style="margin-bottom:20px">
+        <div class="section-card">
+          <div class="section-label">Daily Login Volume (7d)</div>
+          <canvas id="daily-chart"></canvas>
+        </div>
+        <div class="section-card">
+          <div class="section-label">Risk Distribution</div>
+          <canvas id="risk-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-label">All Users</div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Failed Attempts</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="users-body">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-3);padding:24px">Loading users...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
