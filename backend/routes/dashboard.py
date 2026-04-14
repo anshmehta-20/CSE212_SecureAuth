@@ -111,7 +111,10 @@ def risk_summary():
 def analytics():
     conn = get_connection()
     try:
-        since_7d = (datetime.utcnow() - timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
+        # Use timedelta(days=6) so the range is today + 6 prior days = exactly 7 calendar days.
+        # timedelta(days=7) would span up to 8 calendar days depending on the current time-of-day.
+        now_utc   = datetime.utcnow()
+        since_7d  = (now_utc - timedelta(days=6)).strftime('%Y-%m-%d %H:%M:%S')
 
         cur = execute(conn, "SELECT COUNT(*) AS cnt FROM login_history WHERE timestamp >= ?", (since_7d,))
         total_7d = dict_from_row(cur.fetchone()).get('cnt', 0)
@@ -134,8 +137,19 @@ def analytics():
                FROM login_history WHERE timestamp >= ?
                GROUP BY DATE(timestamp) ORDER BY day""",
             (since_7d,))
-        daily = [{'date': str(dict_from_row(r)['day']), 'count': dict_from_row(r)['cnt']}
-                 for r in cur.fetchall()]
+        db_daily = {str(dict_from_row(r)['day']): dict_from_row(r)['cnt']
+                    for r in cur.fetchall()}
+
+        # Build a complete 7-day list, filling zeros for any day with no logins
+        from datetime import date as _date, timedelta as _td
+        today = now_utc.date()
+        daily = [
+            {
+                'date':  str(today - _td(days=6 - i)),   # day-6 … day-0 (today)
+                'count': db_daily.get(str(today - _td(days=6 - i)), 0),
+            }
+            for i in range(7)
+        ]
 
         cur = execute(conn,
             """SELECT u.username, AVG(lh.risk_score) AS avg_risk
@@ -160,6 +174,7 @@ def analytics():
         }), 200
     finally:
         conn.close()
+
 
 
 @dash_bp.route('/users', methods=['POST'])
@@ -251,5 +266,34 @@ def edit_user(user_id):
 
         conn.commit()
         return jsonify({'status': 'success', 'message': 'User updated.'}), 200
+    finally:
+        conn.close()
+
+
+@dash_bp.route('/users/<int:user_id>', methods=['DELETE'])
+@require_admin
+def delete_user(user_id):
+    # Prevent admin from deleting themselves
+    if user_id == request.user_id:
+        return jsonify({'error': 'You cannot delete your own account.'}), 400
+
+    conn = get_connection()
+    try:
+        cur = execute(conn, "SELECT id, username FROM users WHERE id = ?", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            return jsonify({'error': 'User not found.'}), 404
+
+        # Delete related data first (foreign key safety)
+        execute(conn, "DELETE FROM login_history WHERE user_id = ?", (user_id,))
+        execute(conn, "DELETE FROM ai_metrics WHERE user_id = ?", (user_id,))
+        execute(conn, "DELETE FROM refresh_tokens WHERE user_id = ?", (user_id,))
+        execute(conn, "DELETE FROM mfa_tokens WHERE user_id = ?", (user_id,))
+        execute(conn, "DELETE FROM users WHERE id = ?", (user_id,))
+        conn.commit()
+
+        username = dict_from_row(row).get('username', str(user_id))
+        logger.info("Admin deleted user: %s (id=%d)", username, user_id)
+        return jsonify({'status': 'success', 'message': f'User "{username}" deleted.'}), 200
     finally:
         conn.close()

@@ -68,7 +68,7 @@ def create_app() -> Flask:
         resources={
             r'/api/*': {
                 'origins': ['http://localhost:*', 'http://127.0.0.1:*', 'null', '*'],
-                'methods': ['GET', 'POST', 'PUT', 'OPTIONS'],
+                'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
                 'allow_headers': ['Content-Type', 'Authorization'],
             }
         },
@@ -92,6 +92,24 @@ def create_app() -> Flask:
     @app.route('/health')
     def health():
         return jsonify({'status': 'ok', 'service': 'SecureAuth API'}), 200
+
+    FAVICON_SVG = (
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'>"
+        "<rect width='100' height='100' rx='22' fill='url(#g)'/>"
+        "<defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'>"
+        "<stop offset='0%' stop-color='#3b82f6'/>"
+        "<stop offset='100%' stop-color='#8b5cf6'/>"
+        "</linearGradient></defs>"
+        "<path d='M50 20a20 20 0 0 1 20 20v6h5a3 3 0 0 1 3 3v22a3 3 0 0 1-3 3H25a3 3 0 0 1-3-3V49a3 3 0 0 1 3-3h5v-6A20 20 0 0 1 50 20zm0 43a6 6 0 1 0 0-12 6 6 0 0 0 0 12zm13-23v-6a13 13 0 0 0-26 0v6h26z' fill='white'/>"
+        "</svg>"
+    )
+
+    from flask import Response as _Response
+
+    @app.route('/favicon.png')
+    @app.route('/favicon.ico')
+    def favicon():
+        return _Response(FAVICON_SVG, mimetype='image/svg+xml')
 
     @app.errorhandler(404)
     def not_found(error):

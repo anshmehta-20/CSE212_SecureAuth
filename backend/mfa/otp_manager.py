@@ -62,34 +62,37 @@ def verify_otp(mfa_token: str, otp_input: str) -> tuple:
         conn.close()
 
 
-def send_otp_email(to_email: str, username: str, otp: str) -> bool:
+def send_otp_email(to_email: str, username: str, otp: str) -> tuple:
+    """Returns (delivered: bool, fallback_otp: str | None).
+    fallback_otp is set when delivery failed and the OTP must be shown in-UI."""
     if not RESEND_API_KEY or RESEND_API_KEY.startswith('re_your_'):
         logger.warning("RESEND_API_KEY not set — OTP for %s: %s (console only)", username, otp)
         print(f"\n{'='*50}\nMFA OTP (dev mode)\n  User:  {username}\n  Email: {to_email}\n  OTP:   {otp}\n  Expires in {OTP_EXPIRY_MINS} minutes\n{'='*50}\n")
-        return True
+        return True, None  # Local dev — console log is fine, no in-UI fallback needed
+
     # 1. First, attempt standard SMTP protocol if credentials exist in .env
     smtp_user = os.getenv('SMTP_EMAIL')
     smtp_pass = os.getenv('SMTP_PASSWORD')
-    
+
     if smtp_user and smtp_pass:
         import smtplib
         from email.mime.text import MIMEText
         from email.mime.multipart import MIMEMultipart
-        
+
         try:
             msg = MIMEMultipart()
             msg['From'] = smtp_user
             msg['To'] = to_email
             msg['Subject'] = f"SecureAuth: Your verification code is {otp}"
             msg.attach(MIMEText(_email_html(username, otp), 'html'))
-            
+
             server = smtplib.SMTP(os.getenv('SMTP_SERVER', 'smtp.gmail.com'), int(os.getenv('SMTP_PORT', 587)))
             server.starttls()
             server.login(smtp_user, smtp_pass)
             server.send_message(msg)
             server.quit()
             logger.info("OTP email sent via SMTP to %s", to_email)
-            return True
+            return True, None
         except Exception as exc:
             logger.error("SMTP delivery failed: %s", exc)
 
@@ -104,7 +107,7 @@ def send_otp_email(to_email: str, username: str, otp: str) -> bool:
             "html":    _email_html(username, otp),
         })
         logger.info("OTP email sent via Resend to %s", to_email)
-        return True
+        return True, None
     except Exception as exc:
         logger.error("Failed to send OTP via Resend: %s", exc)
         logger.warning(
@@ -113,7 +116,8 @@ def send_otp_email(to_email: str, username: str, otp: str) -> bool:
             "  Intercepted OTP for %s: >> %s <<\n" % (to_email, otp) +
             "=" * 50 + "\n"
         )
-        return False
+        # Return the OTP so the API can surface it in-UI (demo fallback)
+        return False, otp
 
 
 def _email_html(username: str, otp: str) -> str:

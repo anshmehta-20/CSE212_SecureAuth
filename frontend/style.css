@@ -874,7 +874,7 @@ select.form-input option {
   gap:                   20px;
 }
 .info-item-label { font-size: 11px; color: var(--text-3); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 5px; }
-.info-item-value { font-size: 14px; color: var(--text-1); font-weight: 500; }
+.info-item-value { font-size: 14px; color: var(--text-1); font-weight: 500; min-width: 0; word-break: break-all; }
 
 /* Table */
 .table-wrap {

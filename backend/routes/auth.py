@@ -157,18 +157,29 @@ def login():
     elif risk_level == 'MEDIUM':
         # Require MFA
         mfa_token, otp = create_mfa_session(user.id, result)
-        send_otp_email(user.email, user.username, otp)
+        delivered, fallback_otp = send_otp_email(user.email, user.username, otp)
         user.record_login(ip, device_hash, location, risk_score, risk_level, 'mfa_required', explanation)
         logger.info("MFA required for user=%s score=%.1f", username, risk_score)
-        return jsonify({
-            'status':     'mfa_required',
-            'message':    'Multi-factor authentication required.',
-            'mfa_token':  mfa_token,
-            'risk_score': risk_score,
-            'risk_level': risk_level,
-            'confidence': confidence,
-            'explanation': explanation,
-        }), 200
+        # Mask the email for display: show first 2 chars then *** then domain
+        email = user.email
+        at_idx = email.find('@')
+        if at_idx > 2:
+            masked_email = email[:2] + '*' * (at_idx - 2) + email[at_idx:]
+        else:
+            masked_email = email[:1] + '***' + email[at_idx:]
+        resp = {
+            'status':       'mfa_required',
+            'message':      'Multi-factor authentication required.',
+            'mfa_token':    mfa_token,
+            'email_hint':   masked_email,
+            'risk_score':   risk_score,
+            'risk_level':   risk_level,
+            'confidence':   confidence,
+            'explanation':  explanation,
+        }
+        if fallback_otp:
+            resp['fallback_otp'] = fallback_otp
+        return jsonify(resp), 200
 
     else:
         # Allow – issue tokens
@@ -304,13 +315,16 @@ def resend_otp():
         return jsonify({'error': 'User not found.'}), 404
 
     new_mfa_token, otp = create_mfa_session(user.id, {})
-    send_otp_email(user.email, user.username, otp)
+    delivered, fallback_otp = send_otp_email(user.email, user.username, otp)
 
-    return jsonify({
+    resp = {
         'status':    'success',
         'mfa_token': new_mfa_token,
         'message':   'New OTP sent.',
-    }), 200
+    }
+    if fallback_otp:
+        resp['fallback_otp'] = fallback_otp
+    return jsonify(resp), 200
 
 
 # ─────────────────────────────────────────────────────────────────

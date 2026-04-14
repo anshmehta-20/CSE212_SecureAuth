@@ -13,7 +13,7 @@ const Store = {
   set:   (k, v) => sessionStorage.setItem(`sa_${k}`, JSON.stringify(v)),
   get:   (k)    => { try { return JSON.parse(sessionStorage.getItem(`sa_${k}`)); } catch { return null; } },
   del:   (k)    => sessionStorage.removeItem(`sa_${k}`),
-  clear: ()     => ['token','refresh','user','risk','mfa_token'].forEach(k => Store.del(k)),
+  clear: ()     => ['token','refresh','user','risk','mfa_token','email_hint','fallback_otp'].forEach(k => Store.del(k)),
 };
 
 /* ── API fetch ── */
@@ -213,6 +213,9 @@ if (PAGE === 'login') {
     } else if (status === 'mfa_required') {
       Store.set('mfa_token', data.mfa_token);
       Store.set('risk', { risk_score: score, risk_level: level, confidence: conf, explanation: expl });
+      if (data.email_hint) Store.set('email_hint', data.email_hint);
+      if (data.fallback_otp) Store.set('fallback_otp', data.fallback_otp);
+      else Store.del('fallback_otp');
 
       const mfaBtn = document.createElement('button');
       mfaBtn.className   = 'btn btn-primary';
@@ -252,6 +255,30 @@ if (PAGE === 'mfa') {
 
   const mfaToken = Store.get('mfa_token');
   if (!mfaToken) location.href = 'index.html';
+
+  /* Show which email the OTP was sent to */
+  const emailHint = Store.get('email_hint');
+  if (emailHint) {
+    const subEl = document.getElementById('mfa-sub');
+    if (subEl) subEl.textContent = `Enter the 6-digit code sent to ${emailHint}`;
+  }
+
+  /* Show fallback OTP banner if email delivery failed */
+  function showFallbackOtp(otp) {
+    const container = document.getElementById('alert-container');
+    if (!container || !otp) return;
+    container.innerHTML = `
+      <div class="alert alert-warning" role="alert" style="flex-direction:column;gap:6px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="alert-dot"></div>
+          <span style="font-weight:600;">Email delivery unavailable — Demo mode</span>
+        </div>
+        <div style="font-size:12px;color:var(--text-2);margin-top:2px;">Your one-time code (email could not be sent):</div>
+        <div style="font-size:28px;font-weight:800;letter-spacing:10px;font-family:ui-monospace,monospace;color:#facc15;text-align:center;padding:8px 0;">${esc(otp)}</div>
+      </div>`;
+  }
+  const fallbackOtp = Store.get('fallback_otp');
+  if (fallbackOtp) showFallbackOtp(fallbackOtp);
 
   /* Risk context bar */
   const risk = Store.get('risk');
@@ -366,12 +393,18 @@ if (PAGE === 'mfa') {
     });
     if (data.status === 'success') {
       Store.set('mfa_token', data.mfa_token);
-      showAlert('alert-container', 'A new code has been sent to your email.', 'success');
       secsLeft = 5 * 60;
       timerEl.classList.remove('expired');
       countEl.textContent = fmt(secsLeft);
       resendBtn.disabled  = true;
       resendBtn.textContent = 'Resend Code (30s)';
+      if (data.fallback_otp) {
+        Store.set('fallback_otp', data.fallback_otp);
+        showFallbackOtp(data.fallback_otp);
+      } else {
+        Store.del('fallback_otp');
+        showAlert('alert-container', 'A new code has been sent to your email.', 'success');
+      }
     } else {
       showAlert('alert-container', data.error || 'Failed to resend code.', 'error');
     }
@@ -566,8 +599,9 @@ if (PAGE === 'dashboard') {
              : `<div class="badge badge-low"><div class="badge-dot"></div>Active</div>`}</td>
         <td style="font-variant-numeric:tabular-nums">${u.failed_attempts}</td>
         <td>${esc(fmtDate(u.created_at))}</td>
-        <td>
+        <td style="display:flex;gap:6px;">
           <button class="btn btn-ghost btn-sm edit-user-action" data-id="${u.id}" style="padding:4px 8px; font-size:12px;">Edit</button>
+          <button class="btn btn-ghost btn-sm delete-user-action" data-id="${u.id}" data-username="${esc(u.username)}" style="padding:4px 8px; font-size:12px; color:var(--red);">Delete</button>
         </td>
       </tr>
     `).join('');
@@ -587,6 +621,21 @@ if (PAGE === 'dashboard') {
           document.getElementById('edit-password').value = '';
           clearAlert('admin-edit-alert');
           document.getElementById('admin-edit-modal').classList.add('open');
+        }
+      });
+    });
+
+    document.querySelectorAll('.delete-user-action').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = parseInt(e.currentTarget.dataset.id);
+        const username = e.currentTarget.dataset.username;
+        if (!confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+        const { ok, data } = await api(`/users/${id}`, { method: 'DELETE' });
+        if (ok) {
+          showAlert('alert-container', data.message || 'User deleted.', 'success');
+          loadAdmin();
+        } else {
+          showAlert('alert-container', data.error || 'Failed to delete user.', 'error');
         }
       });
     });
